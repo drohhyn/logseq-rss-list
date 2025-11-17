@@ -1,5 +1,139 @@
 import "@logseq/libs";
 
+// RSS Feed item interface
+interface RSSItem {
+  title: string;
+  link: string;
+  description?: string;
+  pubDate?: string;
+  guid?: string;
+}
+
+// RSS Feed interface
+interface RSSFeed {
+  title: string;
+  link: string;
+  description?: string;
+  items: RSSItem[];
+}
+
+// Parse RSS/XML feed content
+async function parseRSSFeed(xmlContent: string): Promise<RSSFeed> {
+  return new Promise((resolve, reject) => {
+    try {
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
+      
+      // Check for parsing errors
+      const parserError = xmlDoc.querySelector("parsererror");
+      if (parserError) {
+        reject(new Error("Invalid XML/RSS format"));
+        return;
+      }
+
+      // Handle different RSS formats (RSS 2.0, Atom, etc.)
+      let channelTitle = "";
+      let channelLink = "";
+      let channelDescription = "";
+      let items: RSSItem[] = [];
+
+      // Try RSS 2.0 format first
+      const channel = xmlDoc.querySelector("channel");
+      if (channel) {
+        const titleElement = channel.querySelector("title");
+        const linkElement = channel.querySelector("link");
+        const descriptionElement = channel.querySelector("description");
+        
+        channelTitle = titleElement?.textContent?.trim() || "";
+        channelLink = linkElement?.textContent?.trim() || "";
+        channelDescription = descriptionElement?.textContent?.trim() || "";
+
+        // Parse items
+        const itemElements = channel.querySelectorAll("item");
+        items = Array.from(itemElements).map(item => {
+          const title = item.querySelector("title")?.textContent?.trim() || "";
+          const link = item.querySelector("link")?.textContent?.trim() || "";
+          const description = item.querySelector("description")?.textContent?.trim();
+          const pubDate = item.querySelector("pubDate")?.textContent?.trim();
+          const guid = item.querySelector("guid")?.textContent?.trim();
+          
+          return {
+            title,
+            link,
+            description,
+            pubDate,
+            guid
+          };
+        });
+      } else {
+        // Try Atom format
+        const feedTitle = xmlDoc.querySelector("feed > title");
+        const feedLink = xmlDoc.querySelector("feed > link[href]");
+        const feedDescription = xmlDoc.querySelector("feed > subtitle");
+        
+        channelTitle = feedTitle?.textContent?.trim() || "";
+        channelLink = feedLink?.getAttribute("href") || "";
+        channelDescription = feedDescription?.textContent?.trim() || "";
+
+        // Parse Atom entries
+        const entryElements = xmlDoc.querySelectorAll("entry");
+        items = Array.from(entryElements).map(entry => {
+          const title = entry.querySelector("title")?.textContent?.trim() || "";
+          const linkElement = entry.querySelector("link[href]");
+          const link = linkElement?.getAttribute("href") || "";
+          const description = entry.querySelector("summary")?.textContent?.trim() ||
+                            entry.querySelector("content")?.textContent?.trim();
+          const pubDate = entry.querySelector("published")?.textContent?.trim() ||
+                         entry.querySelector("updated")?.textContent?.trim();
+          const guid = entry.querySelector("id")?.textContent?.trim();
+          
+          return {
+            title,
+            link,
+            description,
+            pubDate,
+            guid
+          };
+        });
+      }
+
+      // Filter out empty titles and links
+      const validItems = items.filter(item => item.title && item.link);
+
+      resolve({
+        title: channelTitle || "RSS Feed",
+        link: channelLink,
+        description: channelDescription,
+        items: validItems.slice(0, 20) // Limit to 20 items for performance
+      });
+      
+    } catch (error) {
+      reject(new Error(`Failed to parse RSS feed: ${error instanceof Error ? error.message : 'Unknown error'}`));
+    }
+  });
+}
+
+// Fetch RSS feed content from URL
+async function fetchRSSFeed(feedUrl: string): Promise<RSSFeed> {
+  try {
+    // Try fetching directly first
+    const response = await fetch(feedUrl);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const xmlContent = await response.text();
+    
+    return await parseRSSFeed(xmlContent);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Failed to fetch')) {
+      throw new Error(`CORS error: Unable to fetch RSS feed directly. Please try a different feed URL or check if the feed supports CORS.`);
+    }
+    throw new Error(`Failed to fetch RSS feed: ${error instanceof Error ? error.message : 'Network error'}`);
+  }
+}
+
 async function main() {
   console.log("RSS Feed List plugin loaded");
 
@@ -94,7 +228,6 @@ async function showRSSInputDialog() {
 
 async function handleRSSFeedAddition(feedUrl: string) {
   try {
-
     const cleanUrl = feedUrl.trim();
     
     // Validate URL
@@ -105,21 +238,55 @@ async function handleRSSFeedAddition(feedUrl: string) {
       return;
     }
 
+    logseq.UI.showMsg("Fetching RSS feed...", "info");
+    
+    // Fetch and parse RSS feed
+    const rssFeed = await fetchRSSFeed(cleanUrl);
+    
     // Get current timestamp in user's preferred format
     const timestamp = await getCurrentTimestamp();
     
-    // Create RSS entry block content
-    const rssEntry = `[[RSS Feed]] ${cleanUrl} (added: ${timestamp})`;
+    // Create the main feed block with channel title as link to the feed URL
+    const mainFeedBlock = `[${rssFeed.title}](${cleanUrl}) (added: ${timestamp})`;
     
-    // Insert the block into the graph
-    await insertRSSEntry(rssEntry);
+    // Insert the main feed block into the graph
+    const mainBlock = await insertRSSEntry(mainFeedBlock);
     
-    logseq.UI.showMsg("RSS feed added successfully!", "success");
+    // Create nested blocks for each feed item
+    if (mainBlock && rssFeed.items.length > 0) {
+      // Get the UUID from the main block
+      const mainBlockUuid = mainBlock.uuid || mainBlock;
+      
+      for (const item of rssFeed.items) {
+        const itemBlockContent = `[${item.title}](${item.link})`;
+        
+        try {
+          await logseq.Editor.insertBlock(mainBlockUuid, itemBlockContent, {
+            properties: {
+              pubDate: item.pubDate || null
+            }
+          });
+        } catch (error) {
+          console.warn("Failed to insert feed item block:", item.title, error);
+        }
+      }
+      
+      // Add an empty line after all items to move cursor to next line (at same level as main feed block)
+      try {
+        await logseq.Editor.insertBlock(mainBlockUuid, "", {
+          sibling: true
+        });
+      } catch (error) {
+        console.warn("Failed to add empty line:", error);
+      }
+    }
+    
+    logseq.UI.showMsg(`RSS feed "${rssFeed.title}" added with ${rssFeed.items.length} items!`, "success");
     
   } catch (error) {
     console.error("Error in handleRSSFeedAddition:", error);
     if (error instanceof Error && error.message !== "Input cancelled") {
-      logseq.UI.showMsg("Failed to add RSS feed", "error");
+      logseq.UI.showMsg(`Failed to add RSS feed: ${error.message}`, "error");
     }
   }
 }
@@ -177,24 +344,27 @@ function formatDateToUserPreference(date: Date, dateFormat: string): string {
   }
 }
 
-async function insertRSSEntry(rssEntry: string): Promise<void> {
+async function insertRSSEntry(rssEntry: string): Promise<any> {
   try {
     // Get the current page/block where user is editing
     const currentBlock = await logseq.Editor.getCurrentBlock();
     
     if (currentBlock) {
       // Insert as a sibling block after current block
-      await logseq.Editor.insertBlock(currentBlock.uuid, rssEntry, {
+      const result = await logseq.Editor.insertBlock(currentBlock.uuid, rssEntry, {
         sibling: true
       });
+      return result;
     } else {
       // If no current block, insert at the beginning of the current page
       const currentPage = await logseq.Editor.getCurrentPage();
       if (currentPage) {
-        await logseq.Editor.prependBlockInPage(currentPage.uuid, rssEntry);
+        const result = await logseq.Editor.prependBlockInPage(currentPage.uuid, rssEntry);
+        return result;
       } else {
         // Last resort: insert at editing cursor
-        await logseq.Editor.insertAtEditingCursor(rssEntry);
+        const result = await logseq.Editor.insertAtEditingCursor(rssEntry);
+        return result;
       }
     }
   } catch (error) {
