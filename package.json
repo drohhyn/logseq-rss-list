@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "A modern Logseq plugin to fetch and display RSS feed entries as linked lists.",
   "author": "drohhyn <logseq-plugin@drohhyn.net>",
-  "license": "MIT",
+  "license": "GPL-3.0",
   "main": "dist/index.html",
   "scripts": {
     "dev": "vite",
