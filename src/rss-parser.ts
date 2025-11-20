@@ -1,4 +1,4 @@
-import { RSSFeed, RSSItem } from './types';
+import { RSSFeed, RSSItem } from './types/rss';
 
 // Parse RSS/XML feed content
 export async function parseRSSFeed(xmlContent: string): Promise<RSSFeed> {

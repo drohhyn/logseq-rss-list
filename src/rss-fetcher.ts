@@ -1,4 +1,4 @@
-import { RSSFeed } from './types';
+import { RSSFeed } from './types/rss';
 import { parseRSSFeed } from './rss-parser';
 
 // Fetch RSS feed content from URL

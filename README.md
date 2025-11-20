@@ -12,6 +12,7 @@ This plugin integrates RSS feed consumption directly into your Logseq workflow. 
 2. Type `/rsslist` in the editor to activate the slash command
 3. Enter the RSS feed URL when prompted
 4. The plugin will fetch and display recent (20) entries as clickable links
+5. Reload the entries of feeds in the current page from the toolbar
 
 ## Local Development
 
@@ -27,13 +28,6 @@ This plugin integrates RSS feed consumption directly into your Logseq workflow. 
    ```bash
    pnpm install
    ```
-
-### Development
-
-Start the development server:
-```bash
-pnpm dev
-```
 
 ### Building
 
@@ -51,4 +45,5 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 ## Credits
 
 - **Original Author**: drohhyn
-- **Plugin Icon**: [Tabler Icons](https://tabler.io/icons)
+- **Plugin Icon**: Original by [Tabler Icons](https://tabler.io/icons), colors modified.
+- **UI Icons**: Influenced by [Tabler Icons](https://tabler.io/icons).

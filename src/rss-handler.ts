@@ -2,7 +2,46 @@ import { fetchRSSFeed } from './rss-fetcher';
 import { insertRSSEntry } from './block-utils';
 import { getCurrentTimestamp } from './date-utils';
 import { isValidUrl } from './validation';
-import { RSSFeed } from './types';
+import { RSSFeed } from './types/rss';
+
+// Common RSS feed processing logic
+async function createFeedBlocks(feedUrl: string, mainBlockUuid: string): Promise<{title: string, itemsCount: number}> {
+  const cleanUrl = feedUrl.trim();
+  
+  // Fetch and parse RSS feed
+  const rssFeed = await fetchRSSFeed(cleanUrl);
+  
+  // Get current timestamp in user's preferred format
+  const timestamp = await getCurrentTimestamp();
+  
+  // Process feed items
+  if (rssFeed.items.length > 0) {
+    for (const item of rssFeed.items) {
+      const itemBlockContent = `[${item.title}](${item.link})`;
+      
+      try {
+        await logseq.Editor.insertBlock(mainBlockUuid, itemBlockContent, {
+          properties: {
+            pubDate: item.pubDate || null
+          }
+        });
+      } catch (error) {
+        console.warn("Failed to insert feed item block:", item.title, error);
+      }
+    }
+  }
+
+  // Add an empty line after all items to move cursor to next line (at same level as main feed block)
+  try {
+    await logseq.Editor.insertBlock(mainBlockUuid, "", {
+      sibling: true
+    });
+  } catch (error) {
+    console.warn("Failed to add empty line:", error);
+  }
+
+  return { title: rssFeed.title, itemsCount: rssFeed.items.length };
+}
 
 // RSS feed addition handler - main business logic
 export async function handleRSSFeedAddition(feedUrl: string) {
@@ -29,33 +68,12 @@ export async function handleRSSFeedAddition(feedUrl: string) {
     // Insert the main feed block into the graph
     const mainBlock = await insertRSSEntry(mainFeedBlock);
     
-    // Create nested blocks for each feed item
+    // Process feed items
     if (mainBlock && rssFeed.items.length > 0) {
       // Get the UUID from the main block
       const mainBlockUuid = mainBlock.uuid || mainBlock;
       
-      for (const item of rssFeed.items) {
-        const itemBlockContent = `[${item.title}](${item.link})`;
-        
-        try {
-          await logseq.Editor.insertBlock(mainBlockUuid, itemBlockContent, {
-            properties: {
-              pubDate: item.pubDate || null
-            }
-          });
-        } catch (error) {
-          console.warn("Failed to insert feed item block:", item.title, error);
-        }
-      }
-      
-      // Add an empty line after all items to move cursor to next line (at same level as main feed block)
-      try {
-        await logseq.Editor.insertBlock(mainBlockUuid, "", {
-          sibling: true
-        });
-      } catch (error) {
-        console.warn("Failed to add empty line:", error);
-      }
+      await createFeedBlocks(feedUrl, mainBlockUuid);
     }
     
     logseq.UI.showMsg(`RSS feed "${rssFeed.title}" added with ${rssFeed.items.length} items!`, "success");
@@ -79,12 +97,6 @@ export async function handleRSSFeedReload(feedUrl: string) {
     }
 
     console.log(`Reloading RSS feed: ${cleanUrl}`);
-    
-    // Fetch and parse RSS feed
-    const rssFeed = await fetchRSSFeed(cleanUrl);
-    
-    // Get current timestamp in user's preferred format
-    const timestamp = await getCurrentTimestamp();
     
     // Find existing feed blocks on current page
     const currentPage = await logseq.Editor.getCurrentPage();
@@ -111,6 +123,8 @@ export async function handleRSSFeedReload(feedUrl: string) {
 
     // Update the main feed block with new timestamp
     const mainFeedBlock = feedBlocks[0];
+    const rssFeed = await fetchRSSFeed(cleanUrl);
+    const timestamp = await getCurrentTimestamp();
     const updatedMainBlock = `[${rssFeed.title}](${cleanUrl}) <span style="font-size: 0.8em; color: var(--ls-secondary-text-color);" data-rss-url="${cleanUrl}">⏳ ${timestamp}</span>`;
     
     await logseq.Editor.updateBlock(mainFeedBlock.uuid, updatedMainBlock);
@@ -122,7 +136,7 @@ export async function handleRSSFeedReload(feedUrl: string) {
         const child = mainFeedBlock.children[i];
         if (child && child.uuid) {
           try {
-            await logseq.Editor.delete(child.uuid);
+            await logseq.Editor.removeBlock(child.uuid);
           } catch (error) {
             console.warn("Failed to delete old feed item block:", error);
           }
@@ -133,19 +147,7 @@ export async function handleRSSFeedReload(feedUrl: string) {
     // Add new feed items
     const mainBlockUuid = mainFeedBlock.uuid;
     if (rssFeed.items.length > 0) {
-      for (const item of rssFeed.items) {
-        const itemBlockContent = `[${item.title}](${item.link})`;
-        
-        try {
-          await logseq.Editor.insertBlock(mainBlockUuid, itemBlockContent, {
-            properties: {
-              pubDate: item.pubDate || null
-            }
-          });
-        } catch (error) {
-          console.warn("Failed to insert feed item block:", item.title, error);
-        }
-      }
+      await createFeedBlocks(feedUrl, mainBlockUuid);
     }
     
     console.log(`RSS feed "${rssFeed.title}" reloaded with ${rssFeed.items.length} items`);
