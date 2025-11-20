@@ -1,6 +1,7 @@
 import "@logseq/libs";
 import { showRSSInputDialog } from './ui-dialogs';
 import { handleRSSFeedReload } from './rss-handler';
+import reloadRSSIcon from './assets/reloadrss-icon.svg';
 
 async function main() {
   console.log("RSS Feed List plugin loaded");
@@ -32,7 +33,7 @@ async function main() {
         align-items: center;
         gap: 4px;
       " title="Reload RSS feeds on current page">
-        🔄
+        <img src="${reloadRSSIcon}" style="width: 16px; height: 16px; flex-shrink: 0;" alt="Reload RSS feeds" />
       </button>
     `
   });
