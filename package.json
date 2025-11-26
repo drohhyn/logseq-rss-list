@@ -1,6 +1,6 @@
 {
   "name": "logseq-rss-list",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "A modern Logseq plugin to fetch and display RSS feed entries as linked lists.",
   "author": "drohhyn <logseq-plugin@drohhyn.net>",
   "license": "GPL-3.0",
