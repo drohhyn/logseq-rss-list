@@ -14,6 +14,8 @@ This plugin integrates RSS feed consumption directly into your Logseq workflow. 
 4. The plugin will fetch and display recent (20) entries as clickable links
 5. Reload the entries of feeds in the current page from the toolbar
 
+![Demonstration of plugin usage with reload and new feed](logseq-rss-list_screencast.gif)
+
 ## Local Development
 
 ### Prerequisites
