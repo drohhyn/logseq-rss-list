@@ -4,8 +4,17 @@ import { parseRSSFeed } from './rss-parser';
 // Fetch RSS feed content from URL
 export async function fetchRSSFeed(feedUrl: string): Promise<RSSFeed> {
   try {
-    // Try fetching directly first
-    const response = await fetch(feedUrl);
+    // Add cache-busting timestamp and headers to ensure fresh content
+    const cacheBusterUrl = `${feedUrl}${feedUrl.includes('?') ? '&' : '?'}_cb=${Date.now()}`;
+    
+    const response = await fetch(cacheBusterUrl, {
+      method: 'GET',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
