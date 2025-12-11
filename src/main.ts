@@ -1,10 +1,20 @@
 import "@logseq/libs";
 import { showRSSInputDialog } from './ui-dialogs';
 import { handleRSSFeedReload } from './rss-handler';
+import { settingsSchema } from './settings';
 import reloadRSSIcon from './assets/reloadrss-icon.svg';
+
+// Get plugin settings
+export function getMaxItemsSetting(): number {
+  const settings = (logseq.settings || {}) as any;
+  return settings.maxItems || 20;
+}
 
 async function main() {
   console.log("RSS Feed List plugin loaded");
+
+  // Register settings schema
+  logseq.useSettingsSchema(settingsSchema);
 
   // Register slash command
   logseq.Editor.registerSlashCommand("rsslist", async () => {
