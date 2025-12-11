@@ -1,9 +1,13 @@
 import { RSSFeed, RSSItem } from './types/rss';
+import { getMaxItemsSetting } from './main';
 
 // Parse RSS/XML feed content
 export async function parseRSSFeed(xmlContent: string): Promise<RSSFeed> {
   return new Promise((resolve, reject) => {
     try {
+      // Get maxItems setting (default: 20)
+      const maxItems = getMaxItemsSetting();
+      
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
       
@@ -87,7 +91,7 @@ export async function parseRSSFeed(xmlContent: string): Promise<RSSFeed> {
         title: channelTitle || "RSS Feed",
         link: channelLink,
         description: channelDescription,
-        items: validItems.slice(0, 20) // Limit to 20 items for performance
+        items: validItems.slice(0, maxItems) // Limit to maxItems for performance
       });
       
     } catch (error) {
